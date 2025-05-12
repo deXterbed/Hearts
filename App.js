@@ -4,7 +4,8 @@ import {
   Text,
   View,
   TouchableOpacity,
-  ScrollView,
+  Dimensions,
+  SafeAreaView,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 
@@ -38,6 +39,24 @@ const App = () => {
   const [scores, setScores] = useState([0, 0, 0, 0]);
   const [currentPlayer, setCurrentPlayer] = useState(0);
   const [gameState, setGameState] = useState("deal");
+
+  const screenWidth = Dimensions.get("window").width;
+  const handHorizontalPadding = 24 * 2; // paddingHorizontal: 24 on each side
+  const handWidth = screenWidth - handHorizontalPadding;
+  const cardWidth = 60;
+  const horizontalPadding = 8 * 2; // paddingHorizontal: 8 on each side
+  const cardMargin = 4; // margin between cards (in px)
+  const topRowCount = 7;
+  const bottomRowCount = 6;
+  const minCardWidth = 36;
+  const cardWidthTopRaw = (screenWidth - horizontalPadding) / topRowCount;
+  const cardWidthBottomRaw = (screenWidth - horizontalPadding) / bottomRowCount;
+  const cardWidthTop =
+    cardWidthTopRaw < minCardWidth ? minCardWidth : cardWidthTopRaw;
+  const cardWidthBottom =
+    cardWidthBottomRaw < minCardWidth ? minCardWidth : cardWidthBottomRaw;
+  const overlapMargin =
+    cardWidthTopRaw < minCardWidth ? -(minCardWidth - cardWidthTopRaw) : 0;
 
   // Deal cards
   useEffect(() => {
@@ -121,34 +140,100 @@ const App = () => {
   }, [currentPlayer, gameState, currentTrick]);
 
   // Render a card
-  const renderCard = (card, playable = false, playerIndex = null) => (
-    <TouchableOpacity
-      key={`${card.suit}-${card.rank}`}
-      style={[
-        styles.card,
-        { backgroundColor: playable ? "#e0f7fa" : "#fff" },
-        card.suit === "♥" || card.suit === "♦" ? styles.redCard : null,
-      ]}
-      onPress={() => {
-        if (playable && playerIndex === currentPlayer) {
-          const leadSuit = currentTrick.length ? currentTrick[0].suit : null;
-          const valid =
-            !leadSuit || hands[playerIndex].some((c) => c.suit === leadSuit)
-              ? card.suit === leadSuit
-              : true;
-          if (valid) playCard(card, playerIndex);
-        }
-      }}
-      disabled={!playable}
-    >
-      <Text style={styles.cardText}>
-        {card.rank} {card.suit}
-      </Text>
-    </TouchableOpacity>
-  );
+  const renderCard = (
+    card,
+    playable = false,
+    playerIndex = null,
+    row = "top",
+    index = 0
+  ) => {
+    const isRed = card.suit === "♥" || card.suit === "♦";
+    const totalCards = hands[0].length;
+    // Calculate overlap so all cards fit in handWidth
+    let overlap = 0;
+    if (totalCards * cardWidth > handWidth) {
+      overlap = cardWidth - handWidth / totalCards;
+    }
+    const marginLeft = index === 0 ? 0 : -overlap;
+    return (
+      <TouchableOpacity
+        key={`${card.suit}-${card.rank}`}
+        style={[
+          styles.card,
+          {
+            backgroundColor: playable ? "#e0f7fa" : "#fff",
+            marginLeft,
+          },
+          styles.realCard,
+          isRed ? styles.redCard : styles.blackCard,
+        ]}
+        onPress={() => {
+          if (playable && playerIndex === currentPlayer) {
+            const leadSuit = currentTrick.length ? currentTrick[0].suit : null;
+            const valid =
+              !leadSuit || hands[playerIndex].some((c) => c.suit === leadSuit)
+                ? card.suit === leadSuit
+                : true;
+            if (valid) playCard(card, playerIndex);
+          }
+        }}
+        disabled={!playable}
+      >
+        {/* Top-left rank and suit */}
+        <View style={styles.cardCornerTop}>
+          <Text
+            style={[
+              styles.cornerText,
+              isRed ? styles.redText : styles.blackText,
+            ]}
+          >
+            {card.rank}
+          </Text>
+          <Text
+            style={[
+              styles.cornerText,
+              isRed ? styles.redText : styles.blackText,
+            ]}
+          >
+            {card.suit}
+          </Text>
+        </View>
+        {/* Center suit */}
+        <View style={styles.cardCenter}>
+          <Text
+            style={[
+              styles.centerSuit,
+              isRed ? styles.redText : styles.blackText,
+            ]}
+          >
+            {card.suit}
+          </Text>
+        </View>
+        {/* Bottom-right rank and suit, rotated */}
+        <View style={styles.cardCornerBottom}>
+          <Text
+            style={[
+              styles.cornerText,
+              isRed ? styles.redText : styles.blackText,
+            ]}
+          >
+            {card.rank}
+          </Text>
+          <Text
+            style={[
+              styles.cornerText,
+              isRed ? styles.redText : styles.blackText,
+            ]}
+          >
+            {card.suit}
+          </Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Hearts</Text>
       <Text style={styles.info}>
         Scores: P1: {scores[0]} P2: {scores[1]} P3: {scores[2]} P4: {scores[3]}
@@ -177,14 +262,39 @@ const App = () => {
               {currentTrick.map((card) => renderCard(card))}
             </View>
           </View>
-          <ScrollView horizontal style={styles.hand}>
-            {hands[0].map((card) =>
-              renderCard(card, gameState === "play" && currentPlayer === 0, 0)
+          <View style={[styles.hand]}>
+            <View style={styles.handRow}>
+              {hands[0]
+                .slice(0, topRowCount)
+                .map((card, idx) =>
+                  renderCard(
+                    card,
+                    gameState === "play" && currentPlayer === 0,
+                    0,
+                    "top",
+                    idx
+                  )
+                )}
+            </View>
+            {hands[0].length > topRowCount && (
+              <View style={[styles.handRow, styles.overlapRow]}>
+                {hands[0]
+                  .slice(topRowCount)
+                  .map((card, idx) =>
+                    renderCard(
+                      card,
+                      gameState === "play" && currentPlayer === 0,
+                      0,
+                      "bottom",
+                      idx
+                    )
+                  )}
+              </View>
             )}
-          </ScrollView>
+          </View>
         </>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -199,19 +309,72 @@ const styles = StyleSheet.create({
   info: { fontSize: 16, textAlign: "center", marginVertical: 5 },
   trickArea: { flex: 1, justifyContent: "center", alignItems: "center" },
   trick: { flexDirection: "row", flexWrap: "wrap", justifyContent: "center" },
-  hand: { maxHeight: 100, marginTop: 20 },
-  card: {
-    width: 60,
-    height: 80,
-    borderRadius: 5,
-    borderWidth: 1,
-    borderColor: "#000",
+  hand: {
+    flexDirection: "column",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  handRow: {
+    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    margin: 5,
   },
-  redCard: { color: "red" },
-  cardText: { fontSize: 16, fontWeight: "bold" },
+  overlapRow: {
+    marginTop: -30,
+  },
+  card: {
+    aspectRatio: 0.75,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#bbb",
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 3,
+    elevation: 2,
+    overflow: "hidden",
+    position: "relative",
+    width: 70,
+  },
+  realCard: {
+    padding: 0,
+  },
+  cardCornerTop: {
+    position: "absolute",
+    top: 4,
+    left: 6,
+    alignItems: "flex-start",
+  },
+  cardCornerBottom: {
+    position: "absolute",
+    bottom: 4,
+    right: 6,
+    alignItems: "flex-end",
+    transform: [{ rotate: "180deg" }],
+  },
+  cardCenter: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cornerText: {
+    fontSize: 11,
+    fontWeight: "bold",
+    lineHeight: 16,
+  },
+  centerSuit: {
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  redCard: {},
+  blackCard: {},
+  redText: { color: "red" },
+  blackText: { color: "#222" },
   button: {
     backgroundColor: "#007bff",
     padding: 10,
