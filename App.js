@@ -8,6 +8,10 @@ import {
   SafeAreaView,
 } from "react-native";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
+import Card from "./components/Card";
+import Hand from "./components/Hand";
+import Trick from "./components/Trick";
+import ScoreBoard from "./components/ScoreBoard";
 
 const suits = ["♠", "♥", "♣", "♦"];
 const ranks = [
@@ -139,105 +143,52 @@ const App = () => {
     }
   }, [currentPlayer, gameState, currentTrick]);
 
-  // Render a card
+  // Render a card (for use in Hand and Trick)
   const renderCard = (
     card,
+    index,
+    overlap = 0,
     playable = false,
-    playerIndex = null,
-    row = "top",
-    index = 0
+    playerIndex = null
   ) => {
     const isRed = card.suit === "♥" || card.suit === "♦";
-    const totalCards = hands[0].length;
-    // Calculate overlap so all cards fit in handWidth
-    let overlap = 0;
-    if (totalCards * cardWidth > handWidth) {
-      overlap = cardWidth - handWidth / totalCards;
-    }
     const marginLeft = index === 0 ? 0 : -overlap;
+    let valid = true;
+    const leadSuit = currentTrick.length ? currentTrick[0].suit : null;
+    if (playerIndex !== null && hands[playerIndex]) {
+      if (!leadSuit) {
+        valid = true;
+      } else if (hands[playerIndex].some((c) => c.suit === leadSuit)) {
+        valid = card.suit === leadSuit;
+      } else {
+        valid = true;
+      }
+    }
     return (
-      <TouchableOpacity
-        key={`${card.suit}-${card.rank}`}
-        style={[
-          styles.card,
-          {
-            backgroundColor: playable ? "#e0f7fa" : "#fff",
-            marginLeft,
-          },
-          styles.realCard,
-          isRed ? styles.redCard : styles.blackCard,
-        ]}
+      <Card
+        key={`${card.suit}-${card.rank}-${index}`}
+        card={card}
+        playable={playable && playerIndex === currentPlayer}
         onPress={() => {
           if (playable && playerIndex === currentPlayer) {
-            const leadSuit = currentTrick.length ? currentTrick[0].suit : null;
-            const valid =
-              !leadSuit || hands[playerIndex].some((c) => c.suit === leadSuit)
-                ? card.suit === leadSuit
-                : true;
             if (valid) playCard(card, playerIndex);
           }
         }}
-        disabled={!playable}
-      >
-        {/* Top-left rank and suit */}
-        <View style={styles.cardCornerTop}>
-          <Text
-            style={[
-              styles.cornerText,
-              isRed ? styles.redText : styles.blackText,
-            ]}
-          >
-            {card.rank}
-          </Text>
-          <Text
-            style={[
-              styles.cornerText,
-              isRed ? styles.redText : styles.blackText,
-            ]}
-          >
-            {card.suit}
-          </Text>
-        </View>
-        {/* Center suit */}
-        <View style={styles.cardCenter}>
-          <Text
-            style={[
-              styles.centerSuit,
-              isRed ? styles.redText : styles.blackText,
-            ]}
-          >
-            {card.suit}
-          </Text>
-        </View>
-        {/* Bottom-right rank and suit, rotated */}
-        <View style={styles.cardCornerBottom}>
-          <Text
-            style={[
-              styles.cornerText,
-              isRed ? styles.redText : styles.blackText,
-            ]}
-          >
-            {card.rank}
-          </Text>
-          <Text
-            style={[
-              styles.cornerText,
-              isRed ? styles.redText : styles.blackText,
-            ]}
-          >
-            {card.suit}
-          </Text>
-        </View>
-      </TouchableOpacity>
+        style={[
+          styles.card,
+          { backgroundColor: playable ? "#e0f7fa" : "#fff", marginLeft },
+          styles.realCard,
+          isRed ? styles.redCard : styles.blackCard,
+        ]}
+        isRed={isRed}
+      />
     );
   };
 
   return (
     <SafeAreaView style={styles.container}>
       <Text style={styles.header}>Hearts</Text>
-      <Text style={styles.info}>
-        Scores: P1: {scores[0]} P2: {scores[1]} P3: {scores[2]} P4: {scores[3]}
-      </Text>
+      <ScoreBoard scores={scores} />
       {gameState === "gameOver" ? (
         <View>
           <Text style={styles.info}>Game Over!</Text>
@@ -256,42 +207,23 @@ const App = () => {
         </View>
       ) : (
         <>
-          <View style={styles.trickArea}>
-            <Text style={styles.info}>Current Trick:</Text>
-            <View style={styles.trick}>
-              {currentTrick.map((card) => renderCard(card))}
-            </View>
-          </View>
-          <View style={[styles.hand]}>
-            <View style={styles.handRow}>
-              {hands[0]
-                .slice(0, topRowCount)
-                .map((card, idx) =>
-                  renderCard(
-                    card,
-                    gameState === "play" && currentPlayer === 0,
-                    0,
-                    "top",
-                    idx
-                  )
-                )}
-            </View>
-            {hands[0].length > topRowCount && (
-              <View style={[styles.handRow, styles.overlapRow]}>
-                {hands[0]
-                  .slice(topRowCount)
-                  .map((card, idx) =>
-                    renderCard(
-                      card,
-                      gameState === "play" && currentPlayer === 0,
-                      0,
-                      "bottom",
-                      idx
-                    )
-                  )}
-              </View>
-            )}
-          </View>
+          <Trick
+            currentTrick={currentTrick}
+            renderCard={(card, idx) => renderCard(card, idx, 20)}
+          />
+          <Hand
+            hand={hands[0]}
+            renderCard={(card, idx, overlap) =>
+              renderCard(
+                card,
+                idx,
+                overlap,
+                gameState === "play" && currentPlayer === 0,
+                0
+              )
+            }
+            style={styles.hand}
+          />
         </>
       )}
     </SafeAreaView>
